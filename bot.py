@@ -15,12 +15,20 @@ def welcome(message):
 
 @bot.message_handler(func=lambda msg: True)
 def reply(message):
-    reply = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents= message.text,
-        config=types.GenerateContentConfig(thinking_config=types.ThinkingConfig(thinking_budget=0))
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=message.text,
+            config=types.GenerateContentConfig(thinking_config=types.ThinkingConfig(thinking_budget=0))
         )
-    
-    bot.reply_to(message, reply.text)
+        
+        if response.text:
+            bot.reply_to(message, response.text)
+        else:
+            bot.reply_to(message, "Sorry, I couldn't generate a response.")
+            
+    except Exception as e:
+        print(f"Error: {e}")
+        bot.reply_to(message, "Sorry, there was an error processing your request.")
 
 bot.infinity_polling()
