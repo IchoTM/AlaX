@@ -11,3 +11,4 @@ wheels/
 
 # Dev added files
 .env
+alax.db
