@@ -5,7 +5,10 @@ import datetime
 import requests
 from dateutil import parser as date_parser
 import re
-import os
+from os import getenv
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Import our database utilities
 from db_utils import (
@@ -274,7 +277,7 @@ def format_weather_message(weather_data):
 
 # Main application setup
 def main():
-    bot = os.getenv('token')
+    bot = os.getenv('TOKEN')
     # Create the Application
     application = Application.builder().token(bot).build()
     
