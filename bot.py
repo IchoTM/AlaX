@@ -7,17 +7,13 @@ from dateutil import parser as date_parser
 import re
 from os import getenv
 from dotenv import load_dotenv
-
-load_dotenv()
-
-# Import our database utilities
 from db_utils import (
     ensure_user_exists, add_reminder, get_user_notes, add_note,
     get_user_settings, update_user_setting, add_conversation_context,
     check_database_health
 )
 
-# Command Handlers
+load_dotenv()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /start command"""
@@ -40,6 +36,26 @@ You can also just chat with me naturally, and I'll do my best to help!
     """
     
     await update.message.reply_text(welcome_text)
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle text messages, including location input"""
+    user_id = update.effective_user.id
+    message_text = update.message.text
+    
+    if context.user_data.get('expecting') == None:
+        await update.message.reply_text("I am not currently equiped to handle commandless input.")
+    elif context.user_data.get('expecting') == 'location':
+        context.user_data.pop('expecting', None)
+        
+        update_user_setting(user_id, "weather_location", message_text)
+        
+        await update.message.reply_text(
+            f"✅ Location set successfully!\n"
+            f"📍 Your default location: {message_text}"
+        )
+    else:
+        await update.message.reply_text("I didn't understand that command.")
+
 
 async def remind_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /remind command"""
@@ -208,8 +224,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             settings_text = "⚙️ No settings configured yet."
         
         await query.edit_message_text(settings_text)
-    
-    # Handle other callback data...
     elif query.data == "set_location":
         await query.edit_message_text(
             "🌍 Please send me your default location for weather updates.\n\n"
@@ -247,7 +261,7 @@ def parse_time_from_text(text):
 def get_weather(location):
     """Get weather data from OpenWeatherMap API"""
     # You'll need to get a free API key from openweathermap.org
-    API_KEY = "YOUR_OPENWEATHER_API_KEY"
+    API_KEY = getenv("WEATHER_API_KEY")
     
     try:
         url = f"http://api.openweathermap.org/data/2.5/weather?q={location}&appid={API_KEY}&units=metric"
@@ -277,21 +291,17 @@ def format_weather_message(weather_data):
 
 # Main application setup
 def main():
-    bot = os.getenv('TOKEN')
-    # Create the Application
-    application = Application.builder().token(bot).build()
+    application = Application.builder().token(getenv('TOKEN')).build()
     
-    # Add command handlers
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("remind", remind_command))
     application.add_handler(CommandHandler("weather", weather_command))
     application.add_handler(CommandHandler("note", note_command))
     application.add_handler(CommandHandler("settings", settings_command))
     
-    # Add callback handler for inline keyboards
     application.add_handler(CallbackQueryHandler(button_callback))
     
-    # Run the bot
     application.run_polling()
 
 if __name__ == '__main__':
