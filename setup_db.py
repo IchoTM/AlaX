@@ -30,9 +30,7 @@ def create_database(db_path='alax.db'):
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
                 username TEXT,
-                first_name TEXT,
-                last_name TEXT,
-                timezone TEXT DEFAULT 'UTC',
+                name TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -44,8 +42,7 @@ def create_database(db_path='alax.db'):
             CREATE TABLE IF NOT EXISTS user_settings (
                 user_id INTEGER PRIMARY KEY,
                 weather_location TEXT,
-                notification_enabled BOOLEAN DEFAULT TRUE,
-                daily_summary_time TEXT DEFAULT '08:00',
+                timezone TEXT DEFAULT 'UTC',
                 language TEXT DEFAULT 'en',
                 FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
             )

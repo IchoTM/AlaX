@@ -1,7 +1,7 @@
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
-import datetime
+from datetime import timezone, timedelta, datetime
 import requests
 from dateutil import parser as date_parser
 import re
@@ -20,10 +20,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     
     # Ensure user exists in database
-    ensure_user_exists(user.id, user.username, user.first_name, user.last_name)
+    ensure_user_exists(user.id, user.username, user.name)
     
     welcome_text = f"""
-Hello {user.first_name}! 👋
+Hello {user.name}! 👋
 
 I'm AlaX, your automated life assistant. Here's what I can help you with:
 
@@ -51,8 +51,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await update.message.reply_text(
             f"✅ Location set successfully!\n"
-            f"📍 Your default location: {message_text}"
+            f"📍 Your location: {message_text}"
         )
+    elif context.user_data.get('expecting') == 'timezone':
+        context.user_data.pop('expecting', None)
+
+        try:
+            update_user_setting(user_id, "weather_location", message_text)
+
+            await update.message.reply_text(
+                f"✅ Timezone set successfully!\n"
+                f"⏰  Your time: {get_utc_time(message_text)}"
+            )
+        except Exception as e:
+            await update.message.reply_text(
+                f"Something went wrong!\n\n"
+                f"Please contact the developer.\nIf you are the developer check the console for more information."
+            )
+            print(f"Something went wrong!\n{e}")
     else:
         await update.message.reply_text("I didn't understand that command.")
 
@@ -146,7 +162,7 @@ async def note_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if notes:
             notes_text = "📝 Your recent notes:\n\n"
             for i, (content, created_at) in enumerate(notes, 1):
-                date = datetime.datetime.fromisoformat(created_at).strftime('%m/%d %H:%M')
+                date = datetime.fromisoformat(created_at).strftime('%m/%d %H:%M')
                 notes_text += f"{i}. {content[:50]}{'...' if len(content) > 50 else ''}\n   📅 {date}\n\n"
             
             # Add inline keyboard for note management
@@ -186,7 +202,6 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("🌍 Set Location", callback_data="set_location")],
         [InlineKeyboardButton("⏰ Set Timezone", callback_data="set_timezone")],
-        [InlineKeyboardButton("🔔 Notifications", callback_data="toggle_notifications")],
         [InlineKeyboardButton("📊 View Settings", callback_data="view_settings")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -205,7 +220,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     
     if query.data == "view_settings":
-        # Show current settings
         conn = sqlite3.connect('alax.db')
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM user_settings WHERE user_id = ?', (user_id,))
@@ -217,8 +231,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ⚙️ Your Current Settings:
 
 🌍 Location: {settings[2] or 'Not set'}
-⏰ Timezone: {settings[1]}
-🔔 Notifications: {'Enabled' if settings[3] else 'Disabled'}
+⏰ Timezone: {settings[1] or 'Not Set'}
             """
         else:
             settings_text = "⚙️ No settings configured yet."
@@ -229,22 +242,27 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🌍 Please send me your default location for weather updates.\n\n"
             "Example: New York, NY or London, UK"
         )
-        # Set a flag to expect location input next
         context.user_data['expecting'] = 'location'
+    elif query.data == "set_timezone":
+        await query.edit_message_text(
+            "⏰ Please send me your timezone in UTC format\n\n"
+            "Example: UTC-5"
+        )
+        context.user_data['expecting'] = 'timezone'
 
 # Utility functions
 
 def parse_time_from_text(text):
     """Parse time expressions from natural language"""
-    now = datetime.datetime.now()
+    now = datetime.now()
     
     # Simple regex patterns for time parsing
     patterns = {
-        r'in (\d+) minutes?': lambda m: now + datetime.timedelta(minutes=int(m.group(1))),
-        r'in (\d+) hours?': lambda m: now + datetime.timedelta(hours=int(m.group(1))),
-        r'in (\d+) days?': lambda m: now + datetime.timedelta(days=int(m.group(1))),
+        r'in (\d+) minutes?': lambda m: now + timedelta(minutes=int(m.group(1))),
+        r'in (\d+) hours?': lambda m: now + timedelta(hours=int(m.group(1))),
+        r'in (\d+) days?': lambda m: now + timedelta(days=int(m.group(1))),
         r'at (\d{1,2}):(\d{2})': lambda m: now.replace(hour=int(m.group(1)), minute=int(m.group(2)), second=0, microsecond=0),
-        r'tomorrow at (\d{1,2}):(\d{2})': lambda m: (now + datetime.timedelta(days=1)).replace(hour=int(m.group(1)), minute=int(m.group(2)), second=0, microsecond=0)
+        r'tomorrow at (\d{1,2}):(\d{2})': lambda m: (now + timedelta(days=1)).replace(hour=int(m.group(1)), minute=int(m.group(2)), second=0, microsecond=0)
     }
     
     for pattern, func in patterns.items():
@@ -257,6 +275,22 @@ def parse_time_from_text(text):
         return date_parser.parse(text)
     except:
         return None
+
+def get_utc_time(timezone_str):
+    timezone_str = timezone_str.strip().upper()
+    
+    match = re.match(r'^UTC([+-])(\d{1,2})$', timezone_str)
+    if not match:
+        raise ValueError(f"Invalid timezone format: {timezone_str}")
+    
+    sign = 1 if match.group(1) == '+' else -1
+    hours = int(match.group(2))
+    
+    tz = timezone(timedelta(hours=sign * hours))
+    now = datetime.now(tz)
+
+    return now.strftime('%I:%M %p')
+
 
 def get_weather(location):
     """Get weather data from OpenWeatherMap API"""
@@ -294,6 +328,7 @@ def main():
     application = Application.builder().token(getenv('TOKEN')).build()
     
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("remind", remind_command))
     application.add_handler(CommandHandler("weather", weather_command))

@@ -29,7 +29,7 @@ def get_db_connection():
         if conn:
             conn.close()
 
-def ensure_user_exists(user_id, username=None, first_name=None, last_name=None):
+def ensure_user_exists(user_id, username=None, name=None):
     """Ensure user exists in database, create if not"""
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -45,9 +45,9 @@ def ensure_user_exists(user_id, username=None, first_name=None, last_name=None):
         else:
             # Create new user
             cursor.execute('''
-                INSERT INTO users (user_id, username, first_name, last_name)
-                VALUES (?, ?, ?, ?)
-            ''', (user_id, username, first_name, last_name))
+                INSERT INTO users (user_id, username, name)
+                VALUES (?, ?, ?)
+            ''', (user_id, username, name))
             
             # Create default settings
             cursor.execute('''
