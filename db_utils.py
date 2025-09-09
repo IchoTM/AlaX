@@ -143,7 +143,7 @@ def get_user_settings(user_id):
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT us.*, u.timezone 
+            SELECT us.* 
             FROM user_settings us
             JOIN users u ON us.user_id = u.user_id
             WHERE us.user_id = ?

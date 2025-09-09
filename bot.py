@@ -141,7 +141,7 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(
             f"Sorry, I couldn't get weather data for '{location}'. "
-            "Please check the location name and try again."
+            "Please check the location name and format, then try again."
         )
 
 async def note_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -240,7 +240,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "set_location":
         await query.edit_message_text(
             "🌍 Please send me your default location for weather updates.\n\n"
-            "Example: New York, NY or London, UK"
+            "Example: Detroit ,US or London ,UK"
         )
         context.user_data['expecting'] = 'location'
     elif query.data == "set_timezone":
@@ -294,14 +294,32 @@ def get_utc_time(timezone_str):
 
 def get_weather(location):
     """Get weather data from OpenWeatherMap API"""
-    # You'll need to get a free API key from openweathermap.org
     API_KEY = getenv("WEATHER_API_KEY")
+    
+    # Check if API key exists
+    if not API_KEY:
+        print("ERROR: WEATHER_API_KEY environment variable not set")
+        return None
     
     try:
         url = f"http://api.openweathermap.org/data/2.5/weather?q={location}&appid={API_KEY}&units=metric"
+        print(f"Making request to: {url}")  # Debug line
+        
         response = requests.get(url, timeout=10)
-        return response.json() if response.status_code == 200 else None
-    except:
+        print(f"Response status: {response.status_code}")  # Debug line
+
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print(f"API returned error: {response.status_code} - {response.text}")
+            return None
+            
+    except requests.exceptions.RequestException as e:
+        print(f"Network error: {e}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error: {e}")
         return None
 
 def format_weather_message(weather_data):
