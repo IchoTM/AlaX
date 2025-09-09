@@ -149,17 +149,10 @@ async def note_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     if not context.args:
-        # Show recent notes
-        conn = sqlite3.connect('alax.db')
-        cursor = conn.cursor()
-        cursor.execute(
-            'SELECT content, created_at FROM notes WHERE user_id = ? ORDER BY created_at DESC LIMIT 5',
-            (user_id,)
-        )
-        notes = cursor.fetchall()
-        conn.close()
-        
+        notes = get_user_notes(user_id)
+
         if notes:
+            print(get_user_notes(user_id))
             notes_text = "📝 Your recent notes:\n\n"
             for i, (content, created_at) in enumerate(notes, 1):
                 date = datetime.fromisoformat(created_at).strftime('%m/%d %H:%M')
@@ -177,17 +170,9 @@ async def note_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("You don't have any notes yet. Use `/note <your note>` to create one!")
         return
     
-    # Save new note
     note_content = ' '.join(context.args)
     
-    conn = sqlite3.connect('alax.db')
-    cursor = conn.cursor()
-    cursor.execute(
-        'INSERT INTO notes (user_id, content) VALUES (?, ?)',
-        (user_id, note_content)
-    )
-    conn.commit()
-    conn.close()
+    add_note(user_id, note_content)
     
     await update.message.reply_text(
         f"📝 Note saved!\n\n{note_content}\n\n"
@@ -220,12 +205,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     
     if query.data == "view_settings":
-        conn = sqlite3.connect('alax.db')
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM user_settings WHERE user_id = ?', (user_id,))
-        settings = cursor.fetchone()
-        conn.close()
-        
+        settings = get_user_settings(user_id)
         if settings:
             settings_text = f"""
 ⚙️ Your Current Settings:

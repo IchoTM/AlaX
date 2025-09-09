@@ -109,22 +109,20 @@ def get_user_notes(user_id, limit=10, search_term=None):
     """Get user's notes, optionally filtered by search term"""
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        
         if search_term:
             cursor.execute('''
-                SELECT * FROM notes 
+                SELECT content, created_at FROM notes
                 WHERE user_id = ? AND content LIKE ?
                 ORDER BY created_at DESC
                 LIMIT ?
             ''', (user_id, f'%{search_term}%', limit))
         else:
             cursor.execute('''
-                SELECT * FROM notes 
+                SELECT content, created_at FROM notes
                 WHERE user_id = ?
                 ORDER BY created_at DESC
                 LIMIT ?
             ''', (user_id, limit))
-        
         return cursor.fetchall()
 
 def delete_note(user_id, note_id):
